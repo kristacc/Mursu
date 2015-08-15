@@ -22,13 +22,20 @@ class MursuServer():
         in_c = -46.85 + 175.72 * (data / 2**16)
         return in_c
 
-    def write_to_db(self,measurement):
+    def write_measurement_to_db(self,measurement):
         temperature = parse_temperature(measurement)
-        url = database_address + "/write?db=" + aavikkomursu
-        payload = "measurement,location=" + location + " value=" + temperature
+        url = self.database_address + "/write?db=" + "aavikkomursu"
+        payload = "measurement,location=" + self.location + " value=" + str(temperature)
         binary_data = payload.encode('utf-8')
         req = requests.post(url=url,data=binary_data)
-        # Check success?  
+        # Check success?
+
+    def write_simple_value(self,value):
+        url = self.database_address + "/write?db=" + "aavikkomursu"
+        payload = "measurement,location=" + self.location + " value=" + str(value)
+        binary_data = payload.encode('utf-8')
+        req = requests.post(url=url,data=binary_data)
+        # Check success?    
 
     def configure_database(self,new_address):
         self.database_address = new_address
