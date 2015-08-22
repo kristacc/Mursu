@@ -3,7 +3,7 @@ import mursu_communications as mursu
 
 class MursuServer():
 
-    def __init__(self,location,database_address ="http://mursuja.rannalle.com:8086",t_register = 1000,t_amount = 1):
+    def __init__(self,location,debug=False,database_address="http://mursuja.rannalle.com:8086",t_register = 1000,t_amount = 1):
         self.temperature_register = t_register
         self.temperature_amount = t_amount
         self.location = location
@@ -11,6 +11,7 @@ class MursuServer():
         self.port = 6
         self.baudrate = 38400
         self.timeout = 0.1
+        self.debug = debug
 
     def get_temperature(self,address,port):
         data = mursu.read_holding_register(port,address,self.temperature_register,self.temperature_amount)
@@ -35,7 +36,9 @@ class MursuServer():
         payload = "measurement,location=" + self.location + " value=" + str(value)
         binary_data = payload.encode('utf-8')
         req = requests.post(url=url,data=binary_data)
-        # Check success?    
+        if req.status_code != 204:
+            print("Error posting data, response content was: ")
+            print(req.text)
 
     def configure_database(self,new_address):
         self.database_address = new_address
@@ -47,16 +50,22 @@ class MursuServer():
 
 if __name__ == "__main__":
 
-    mursu = MursuServer("Testimittapiste")
-    port = mursu.open_port(self.port,self.baudrate,self.timeout)
+    mursu = MursuServer("Testimittapiste",True)
 
-    address = 100
+    if mursu.debug == False:
+        port = mursu.open_port(self.port,self.baudrate,self.timeout)
 
-    while True():
-        try:
-            measurement = get_temperature(port,address)
-            write_to_db(measurement)
-        except:
-            "An error happened.."
-        finally:
-            mursu.close(port)
+        address = 100
+
+        while True():
+            try:
+                measurement = get_temperature(port,address)
+                write_to_db(measurement)
+            except:
+                "An error happened.."
+            finally:
+                mursu.close(port)
+    else:
+        # for debug purposes,
+        # post a value to database
+        mursu.write_simple_value(2)
