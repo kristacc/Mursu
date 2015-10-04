@@ -1,5 +1,7 @@
 import requests
 import mursu_communications as mursu
+from influxdb import InfluxDBClient
+from influxdb.exceptions import InfluxDBClientError
 
 class MursuServer():
 
@@ -32,14 +34,41 @@ class MursuServer():
         if req.status_code != 204:
             print("Error posting data, response content was: ")
             print(req.text)
-                                         		
+
+
+    def write_value_using_influx(self,value):
+        
+        client = InfluxDBClient(host='mursuja.rannalle.com', port=8086, username='mursu', password='mursu', database='aavikkomursu')
+        try:
+            json_body = [
+            {
+                "measurement": "temperature",
+                "tags": {
+                    "host": "server01",
+                    "region": "us-west"
+                },
+                #"time": "2009-11-10T23:00:00Z",
+                "fields": {
+                    "value": value
+                }
+            }
+            ]
+            client.write_points(json_body)
+        except InfluxDBClientError:
+            print "Value needs to be a float"
 
     def write_simple_value(self,value):
         url = self.database_address + "/write?db=" + "aavikkomursu&u=mursu&p=mursu"
-        payload = "measurement,location=" + self.location + " value=" + str(value)
-        #binary_data = payload.encode('utf-8')
-        req = requests.post(url=url,data=payload)
-        print req
+        payload_string = "measurement,location=" + self.location + " value=" + str(value)
+        payload = {'string': payload_string}
+        binary_data = payload_string.encode('utf-8')
+        print binary_data
+        print type(binary_data)
+        #print type(b'a')
+        req = requests.post(url=url,data=binary_data)
+        print req.url
+        print req.status_code
+        print req.text
         if req.status_code != 204:
             print("Error posting data, response content was: ")
             print(req.text)
@@ -80,6 +109,6 @@ if __name__ == "__main__":
     else:
         # for debug purposes,
         # post a value to database
-        mursu.query_database()
-        mursu.write_simple_value(2)
+        m.query_database()
+        m.write_value_using_influx(20.0)
 
