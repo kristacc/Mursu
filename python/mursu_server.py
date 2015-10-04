@@ -25,20 +25,27 @@ class MursuServer():
 
     def write_measurement_to_db(self,measurement):
         temperature = parse_temperature(measurement)
-        url = self.database_address + "/write?db=" + "aavikkomursu"
+        url = self.database_address + "/write?db=" + "aavikkomursu&u=mursu&p=mursu"
         payload = "measurement,location=" + self.location + " value=" + str(temperature)
-        binary_data = payload.encode('utf-8')
+        #binary_data = payload.encode('utf-8')
         req = requests.post(url=url,data=binary_data)
         # Check success?
 
     def write_simple_value(self,value):
-        url = self.database_address + "/write?db=" + "aavikkomursu"
+        url = self.database_address + "/write?db=" + "aavikkomursu&u=mursu&p=mursu"
         payload = "measurement,location=" + self.location + " value=" + str(value)
-        binary_data = payload.encode('utf-8')
-        req = requests.post(url=url,data=binary_data)
+        #binary_data = payload.encode('utf-8')
+        req = requests.post(url=url,data=payload)
+        print req
         if req.status_code != 204:
             print("Error posting data, response content was: ")
             print(req.text)
+
+    def query_database(self):
+        url = self.database_address + "/query?"
+        parameters = {'db' : 'aavikkomursu','q':'SELECT * from temperature'}
+        request = requests.get(url=url,params = parameters)
+        print request.text
 
     def configure_database(self,new_address):
         self.database_address = new_address
@@ -68,4 +75,5 @@ if __name__ == "__main__":
     else:
         # for debug purposes,
         # post a value to database
+        mursu.query_database()
         mursu.write_simple_value(2)
