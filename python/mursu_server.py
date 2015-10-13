@@ -1,4 +1,6 @@
 import requests
+import sys
+import time
 import mursu_communications as mursu
 from influxdb import InfluxDBClient
 from influxdb.exceptions import InfluxDBClientError
@@ -93,7 +95,13 @@ if __name__ == "__main__":
 
     m = MursuServer("Testimittapiste",True)
 
-    if m.debug == False:
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
+        while True:
+            #m.query_database()
+            m.write_value_using_influx(40.0)
+            time.sleep(1)
+
+    else:
         port = mursu.open_port(self.port,self.baudrate,self.timeout)
 
         address = 100
@@ -106,9 +114,5 @@ if __name__ == "__main__":
                 "An error happened.."
             finally:
                 mursu.close(port)
-    else:
-        # for debug purposes,
-        # post a value to database
-        m.query_database()
-        m.write_value_using_influx(20.0)
+        
 
