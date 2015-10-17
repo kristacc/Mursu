@@ -1,6 +1,7 @@
 import requests
 import sys
 import time
+
 import mursu_communications as mursu
 from influxdb import InfluxDBClient
 from influxdb.exceptions import InfluxDBClientError
@@ -19,13 +20,15 @@ class MursuServer():
 
     def get_temperature(self,address,port):
         data = mursu.read_holding_register(port,address,self.temperature_register,self.temperature_amount)
-        temperature = parse_temperature(data)
+        mursu.print_message(data)
+        temperature = self.parse_temperature(data)
         return temperature 
 
     def parse_temperature(self,data):
         # Calculate decimal value from data
-        in_c = -46.85 + 175.72 * (data / 2**16)
-        return in_c
+        #in_c = -46.85 + 175.72 * (data / 2**16)
+        #return in_c
+        return 20
 
     def write_measurement_to_db(self,measurement):
         temperature = parse_temperature(measurement)
@@ -98,17 +101,20 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "test":
         while True:
             #m.query_database()
-            m.write_value_using_influx(40.0)
+            port = mursu.open_and_return_local_mursu_port()
+            measurement = m.get_temperature(250,port)
+            m.write_value_using_influx(float(measurement))
             time.sleep(1)
+
 
     else:
         port = mursu.open_port(self.port,self.baudrate,self.timeout)
 
-        address = 100
+        address = 250
 
         while True():
             try:
-                measurement = m.get_temperature(port,address)
+                measurement = m.get_temperature(address,port)
                 m.write_to_db(measurement)
             except:
                 "An error happened.."
