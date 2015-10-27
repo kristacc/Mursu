@@ -8,19 +8,19 @@ from influxdb.exceptions import InfluxDBClientError
 
 class MursuServer():
 
-    def __init__(self,location,debug=False,database_address="http://mursuja.rannalle.com:8086",t_register = 1000,t_amount = 1):
+    def __init__(self,location,debug=False,database_address="http://mursuja.rannalle.com:8086",t_register = 1001,t_amount = 1):
         self.temperature_register = t_register
         self.temperature_amount = t_amount
         self.location = location
         self.database_address = database_address
-        self.port = 6
-        self.baudrate = 38400
+        #self.port = "/dev/tty.usbserial-DA00LG9R" #6
+        #self.baudrate = 38400
         self.timeout = 0.1
         self.debug = debug
 
     def get_temperature(self,address,port):
         data = mursu.read_holding_register(port,address,self.temperature_register,self.temperature_amount)
-        mursu.print_message(data)
+        mursu.print_response(data)
         temperature = self.parse_temperature(data)
         return temperature 
 
@@ -100,9 +100,15 @@ if __name__ == "__main__":
 
     if len(sys.argv) > 1 and sys.argv[1] == "test":
         while True:
-            #m.query_database()
-            port = mursu.open_and_return_local_mursu_port()
-            measurement = m.get_temperature(250,port)
+            if sys.argv[2] == "local":
+                port = mursu.open_and_return_local_mursu_port()
+            elif sys.argv[2] == "actual":
+                port = mursu.open_port("/dev/tty.usbserial-DA00LG9R",38400,0.1)
+            else:
+                print "Syntax: mursu_server.py test local | actual"
+                break
+            mursu_address = 100
+            measurement = m.get_temperature(mursu_address,port)
             m.write_value_using_influx(float(measurement))
             time.sleep(1)
 
