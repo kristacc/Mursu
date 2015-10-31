@@ -65,7 +65,7 @@ if __name__ == "__main__":
     temperature_register = 1001
     temperature_amount = 1
 
-    client = InfluxDBClient(host='mursuja.rannalle.com', port=8086, username='mursu', password='mursu', database='aavikkomursu')
+    client = InfluxDBClient()
 
     mursu_device = MursuServer("Testimittapiste",mursu_address)
 
