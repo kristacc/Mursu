@@ -13,11 +13,7 @@ class MursuServer():
         self.temperature_amount = 0
         self.location = location
         self.address = address
-
-
-    def set_temperature_register_and_amount(self,register,amount):
-        self.temperature_register = register
-        self.temperature_amount = amount
+        self.db_client = None
 
     def get_temperature(self,port):
         data = mursu.read_holding_register(port,self.address,self.temperature_register,self.temperature_amount)
@@ -31,9 +27,8 @@ class MursuServer():
         #return in_c
         return 20
 
-    def write_value_using_influx(self,value):
+    def write_value_using_influx_client(self,value):
         
-        client = InfluxDBClient(host='mursuja.rannalle.com', port=8086, username='mursu', password='mursu', database='aavikkomursu')
         try:
             json_body = [
             {
@@ -48,7 +43,7 @@ class MursuServer():
                 }
             }
             ]
-            client.write_points(json_body)
+            self.db_client.write_points(json_body)
         except InfluxDBClientError:
             print "Value needs to be a float"
 
@@ -70,8 +65,13 @@ if __name__ == "__main__":
     temperature_register = 1001
     temperature_amount = 1
 
+    client = InfluxDBClient(host='mursuja.rannalle.com', port=8086, username='mursu', password='mursu', database='aavikkomursu')
+
     mursu_device = MursuServer("Testimittapiste",mursu_address)
-    mursu_device.set_temperature_register_and_amount(temperature_register,temperature_amount)
+
+    mursu_device.temperature_register = temperature_register
+    mursu_device.temperature_amount = temperature_amount
+    mursu_device.db_client = client
 
     if len(sys.argv) > 2 and sys.argv[1] == "test":
 
@@ -89,7 +89,9 @@ if __name__ == "__main__":
                 break
 
             measurement = mursu_device.get_temperature(port)
-            mursu_device.write_value_using_influx(float(measurement))
+            
+            mursu_device.write_value_using_influx_client(float(measurement))
+
             time.sleep(1)
     else:
         print "Syntax: mursu_server.py test local | actual"
