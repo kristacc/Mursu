@@ -18,10 +18,9 @@ def crc(message):
                 crc >>= 1  
     return crc
 
-def open_port(port=6,baudrate=38400,timeout = 0.1):
+def open_port(port,baudrate,timeout):
  
     com = serial.Serial(port,baudrate,timeout=timeout)
-    #com.open()
     return com
 
 def open_and_return_local_mursu_port():

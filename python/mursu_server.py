@@ -8,18 +8,19 @@ from influxdb.exceptions import InfluxDBClientError
 
 class MursuServer():
 
-    def __init__(self,location,debug=False,database_address="http://mursuja.rannalle.com:8086",t_register = 1001,t_amount = 1):
-        self.temperature_register = t_register
-        self.temperature_amount = t_amount
+    def __init__(self,location,address):
+        self.temperature_register = 0
+        self.temperature_amount = 0
         self.location = location
-        self.database_address = database_address
-        #self.port = "/dev/tty.usbserial-DA00LG9R" #6
-        #self.baudrate = 38400
-        self.timeout = 0.1
-        self.debug = debug
+        self.address = address
 
-    def get_temperature(self,address,port):
-        data = mursu.read_holding_register(port,address,self.temperature_register,self.temperature_amount)
+
+    def set_temperature_register_and_amount(self,register,amount):
+        self.temperature_register = register
+        self.temperature_amount = amount
+
+    def get_temperature(self,port):
+        data = mursu.read_holding_register(port,self.address,self.temperature_register,self.temperature_amount)
         mursu.print_response(data)
         temperature = self.parse_temperature(data)
         return temperature 
@@ -29,17 +30,6 @@ class MursuServer():
         #in_c = -46.85 + 175.72 * (data / 2**16)
         #return in_c
         return 20
-
-    def write_measurement_to_db(self,measurement):
-        temperature = parse_temperature(measurement)
-        url = self.database_address + "/write?db=" + "aavikkomursu&u=mursu&p=mursu"
-        payload = "measurement,location=" + self.location + " value=" + str(temperature)
-        #binary_data = payload.encode('utf-8')
-        req = requests.post(url=url,data=binary_data)
-        if req.status_code != 204:
-            print("Error posting data, response content was: ")
-            print(req.text)
-
 
     def write_value_using_influx(self,value):
         
@@ -62,22 +52,6 @@ class MursuServer():
         except InfluxDBClientError:
             print "Value needs to be a float"
 
-    def write_simple_value(self,value):
-        url = self.database_address + "/write?db=" + "aavikkomursu&u=mursu&p=mursu"
-        payload_string = "measurement,location=" + self.location + " value=" + str(value)
-        payload = {'string': payload_string}
-        binary_data = payload_string.encode('utf-8')
-        print binary_data
-        print type(binary_data)
-        #print type(b'a')
-        req = requests.post(url=url,data=binary_data)
-        print req.url
-        print req.status_code
-        print req.text
-        if req.status_code != 204:
-            print("Error posting data, response content was: ")
-            print(req.text)
-
     def query_database(self):
         url = self.database_address + "/query?"
         parameters = {'db' : 'aavikkomursu','q':'SELECT * from temperature'}
@@ -86,45 +60,39 @@ class MursuServer():
         print request.status_code
         print request.url
 
-    def configure_database(self,new_address):
-        self.database_address = new_address
-
-    def configure_serial(self,port,baudrate,timeout):
-        self.port = port
-        self.baudrate = baudrate
-        self.timeout = timeout
 
 if __name__ == "__main__":
 
-    m = MursuServer("Testimittapiste",True)
+    mursu_address = 100
+    device_location = "/dev/tty.usbserial-DA00LG9R"
+    baudrate = 38400
+    timeout = 0.1
+    temperature_register = 1001
+    temperature_amount = 1
 
-    if len(sys.argv) > 1 and sys.argv[1] == "test":
+    mursu_device = MursuServer("Testimittapiste",mursu_address)
+    mursu_device.set_temperature_register_and_amount(temperature_register,temperature_amount)
+
+    if len(sys.argv) > 2 and sys.argv[1] == "test":
+
         while True:
             if sys.argv[2] == "local":
                 port = mursu.open_and_return_local_mursu_port()
             elif sys.argv[2] == "actual":
-                port = mursu.open_port("/dev/tty.usbserial-DA00LG9R",38400,0.1)
+                try:
+                    port = mursu.open_port(device_location,baudrate,timeout)
+                except OSError:
+                    print "Nothing found at %s - check that mursu is connected and uses this port" % device_location
+                    break
             else:
                 print "Syntax: mursu_server.py test local | actual"
                 break
-            mursu_address = 100
-            measurement = m.get_temperature(mursu_address,port)
-            m.write_value_using_influx(float(measurement))
+
+            measurement = mursu_device.get_temperature(port)
+            mursu_device.write_value_using_influx(float(measurement))
             time.sleep(1)
-
-
     else:
-        port = mursu.open_port(self.port,self.baudrate,self.timeout)
-
-        address = 250
-
-        while True():
-            try:
-                measurement = m.get_temperature(address,port)
-                m.write_to_db(measurement)
-            except:
-                "An error happened.."
-            finally:
-                mursu.close(port)
+        print "Syntax: mursu_server.py test local | actual"
+        print "Use 'local' when testing without a real device and 'actual' when you have a Mursu connected"
         
 
