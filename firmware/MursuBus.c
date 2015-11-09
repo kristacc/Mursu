@@ -583,6 +583,10 @@ void modbus_handle_message(){
 			uint16_t starting_address, quantity;
 		
 			// byte order: high, low
+			// starting address is read from buffer, where is both starting address and quantity
+			// both have two bytes, so moving the first byte (left most) 8bits to the left
+			// this is how we get space for grabbing the other byte
+			// so, we get xxxx yyyy with using OR to combine them, where xxxx is first byte in buffer
 			starting_address =	(g_uart_buffer[2] << 8) | g_uart_buffer[3];
 			quantity =			(g_uart_buffer[4] << 8) | g_uart_buffer[5];
 			
