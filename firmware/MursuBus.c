@@ -26,6 +26,11 @@
 #include <avr/eeprom.h>
 
 
+#include "Modbus.h"
+#include "I2C.h"
+
+#include "MS5607.h"
+
 // Constants:
 
 #define MODBUS_ADDRESS_IDX		(0)
@@ -57,6 +62,10 @@ uint16_t modbus_stop_address = 1010;
 uint16_t measurement_table[8] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80};
 uint8_t ADDRESS_TEMP = 0;
 
+int16_t measurement_offsets[8] = {0,0,0,0};
+
+// function prototypes used in interrupt handlers
+void timer0_reset();
 
 // Function prototype used in interrupt handlers:
 void timer_reset();
@@ -245,6 +254,11 @@ void rs485_mode_receive(){
 		_delay_us(1);
 	}
 	
+	
+	// wait at least 11bits/38400baud (286us ~ 300us)
+	// to be sure that all bits are written to the bus
+	_delay_us(300);
+	
 	// RS485 chip into receive mode
 	// we put PORTA, and it's PA6-pin into 0
 	// (PORTA6 is the pin we are talking about, but we have to take invert from it, to get 1->0.
@@ -259,6 +273,34 @@ void rs485_mode_receive(){
 	uart_clear(); // clear buffer
 }
 
+
+void timer0_init(){
+	// Clear on compare
+	TCCR0A = _BV(WGM00);
+	
+	// prescaler to clock/64: 8MHz clock -> 125kHz
+	TCCR0B = _BV(CS01) | _BV(CS00);
+	
+	// compare A interrupt when 1.5*modbus character time is reached (~450us)
+	OCR0A = 60;
+	// enable compare A interrupt
+	TIMSK0 = _BV(OCIE0A);
+}
+
+void timer1_init(){
+	TCCR1A = 0;
+	
+	// prescaler to clock/1024: 8MHz clock -> 7812.5Hz
+	TCCR1B = _BV(CS11) | _BV(CS01) | _BV(CS00);
+}
+
+void timer0_reset(){
+	TCNT0 = 0;
+}
+
+void timer1_reset(){
+	TCNT1 = 0;
+}
 
 void timer_init(){
 	// Clear on compare
@@ -632,6 +674,8 @@ void modbus_handle_message(){
 int main(void)
 {
 	
+	ms5607_conf_t painemittari;
+	
 	// read configuration from EEPROM
 	configure();
 
@@ -643,6 +687,11 @@ int main(void)
 	// enable interrupts
 	sei();
 
+	_delay_ms(10);
+	// two times, just to be sure
+	ms5607_init(&painemittari);
+	_delay_ms(100);
+	ms5607_init(&painemittari);
 
     while(1)
     {
@@ -663,6 +712,97 @@ int main(void)
 		
 		// continue to wait for the message to arrive
 		}
+		
+		// measure every 0.5 seconds
+		
+		// every ~0.5s
+		if( TCNT1 > 4000 ) {
+			int32_t t;
+			uint32_t value;
+			
+			t = ms5607_get_temperature(&painemittari);
+			t = ms5607_get_temperature(&painemittari);
+			value = t;
+			
+			value += measurement_offsets[0];
+			
+			measurement_table[0] = (value >> 16) & 0xFFFF;
+			measurement_table[1] = (value ) & 0xFFFF;
+			
+			
+			t = ms5607_get_pressure(&painemittari);
+			value = t;
+			
+			value += measurement_offsets[1];
+			
+			measurement_table[2] = (value >> 16) & 0xFFFF;
+			measurement_table[3] = (value ) & 0xFFFF;
+			
+			
+			// humidity
+			{
+				uint8_t byte0, byte1, checksum;
+				uint16_t humidity;
+				
+				i2c_transmit(0x80, 1, 0);
+				i2c_transmit(0xE5, 0, 1);
+				
+				i2c_transmit(0x81, 1, 0);
+				byte0 = i2c_receive(0,0);
+				byte1 = i2c_receive(0,0);
+				checksum = i2c_receive(1,1);
+				checksum = checksum;
+				
+				humidity = (byte0 << 8) | byte1;
+				
+				
+				humidity >>= 2;
+				
+				{
+					int32_t rh = humidity << 2;
+					rh = -((int32_t)600) + (((int32_t)125*(int32_t)100)*rh)/((int32_t)65536);
+					humidity = (int16_t)rh;
+				}
+				
+				humidity += measurement_offsets[2];
+				
+				measurement_table[4] = humidity;
+			}
+			
+			// temperature 2
+			{
+				uint8_t byte0, byte1, checksum;
+				uint16_t temperature;
+				
+				i2c_transmit(0x80, 1, 0);
+				i2c_transmit(0xE3, 0, 1);
+				
+				i2c_transmit(0x81, 1, 0);
+				byte0 = i2c_receive(0,0);
+				byte1 = i2c_receive(0,0);
+				checksum = i2c_receive(1,1);
+				checksum = checksum;
+				
+				temperature = (byte0 << 8) | byte1;
+				
+				
+				temperature >>= 2;
+				
+				{
+					int32_t temp = temperature << 2;
+					temp = -(int32_t)4685 + (((int32_t)17572)*temp)/((int32_t)65536);
+					temperature = (int16_t)temp;
+				}
+				
+				temperature += measurement_offsets[3];
+				
+				measurement_table[5] = temperature;
+			}
+
+			// start waiting for next round
+			timer1_reset();
+		}
+		
 		
 		// I need no reason
 		_delay_us(100);

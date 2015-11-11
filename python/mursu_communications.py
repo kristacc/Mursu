@@ -47,6 +47,8 @@ def read_holding_register(port,address,register,amount):
     print "We wrote: "
     print_message(msg)
     response = port.read(1024)
+    print "We read:"
+    print_response(response)
     return response
 
 def write_single_register(port,address,register,amount):
