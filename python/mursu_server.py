@@ -1,82 +1,104 @@
 import requests
+import sys
+import time
+import struct
+
 import mursu_communications as mursu
+from influxdb import InfluxDBClient
+from influxdb.exceptions import InfluxDBClientError
 
 class MursuServer():
 
-    def __init__(self,location,debug=False,database_address="http://mursuja.rannalle.com:8086",t_register = 1000,t_amount = 1):
-        self.temperature_register = t_register
-        self.temperature_amount = t_amount
+    def __init__(self,location,address):
+        self.temperature_register = 0
+        self.temperature_amount = 0
         self.location = location
-        self.database_address = database_address
-        self.port = 6
-        self.baudrate = 38400
-        self.timeout = 0.1
-        self.debug = debug
+        self.address = address
+        self.db_client = None
 
-    def get_temperature(self,address,port):
-        data = mursu.read_holding_register(port,address,self.temperature_register,self.temperature_amount)
-        temperature = parse_temperature(data)
+    def get_temperature(self,port):
+        data = mursu.read_holding_register(port,self.address,self.temperature_register,self.temperature_amount)
+        temperature = self.parse_temperature(data)
         return temperature 
 
     def parse_temperature(self,data):
-        # Calculate decimal value from data
-        in_c = -46.85 + 175.72 * (data / 2**16)
-        return in_c
+        
+        temp_value = data[3:-2]
+        print len(temp_value)
+        (t0,p,rh,t1) = struct.unpack_from(">IIHH",temp_value,0)
+        t0 /= 100.0
+        return t0
 
-    def write_measurement_to_db(self,measurement):
-        temperature = parse_temperature(measurement)
-        url = self.database_address + "/write?db=" + "aavikkomursu"
-        payload = "measurement,location=" + self.location + " value=" + str(temperature)
-        binary_data = payload.encode('utf-8')
-        req = requests.post(url=url,data=binary_data)
-        if req.status_code != 204:
-            print("Error posting data, response content was: ")
-            print(req.text)
-                                         		
-    def query_db(self):
-        payload = {'db': 'aavikkomursu', 'q': 'SELECT * from temperature'}
-        url = self.database_address + "/query?u=mursu&p=mursu"
-        req = requests.get(url=url,params=payload)
-        print(req.url)
-        print(req.status_code)
-        print(req.text)
+    def write_value_using_influx_client(self,value):
+        
+        try:
+            json_body = [
+            {
+                "measurement": "temperature",
+                "tags": {
+                    "host": "server01",
+                    "region": "us-west"
+                },
+                #"time": "2009-11-10T23:00:00Z",
+                "fields": {
+                    "value": value
+                }
+            }
+            ]
+            self.db_client.write_points(json_body)
+        except InfluxDBClientError:
+            print "Value needs to be a float"
 
-    def write_simple_value(self,value):
-        url = self.database_address + "/write?db=" + "aavikkomursu"
-        payload = "measurement,location=" + self.location + " value=" + str(value)
-        binary_data = payload.encode('utf-8')
-        req = requests.post(url=url,data=binary_data)
-        if req.status_code != 204:
-            print("Error posting data, response content was: ")
-            print(req.text)
+    def query_database(self):
+        url = self.database_address + "/query?"
+        parameters = {'db' : 'aavikkomursu','q':'SELECT * from temperature'}
+        request = requests.get(url=url,params = parameters)
+        print request.text
+        print request.status_code
+        print request.url
 
-    def configure_database(self,new_address):
-        self.database_address = new_address
-
-    def configure_serial(self,port,baudrate,timeout):
-        self.port = port
-        self.baudrate = baudrate
-        self.timeout = timeout
 
 if __name__ == "__main__":
 
-    m = MursuServer("Testimittapiste",True)
+    mursu_address = 100
+    device_location = 2 #"COM3" #"/dev/tty.usbserial-DA00LG9R"
+    baudrate = 38400
+    timeout = 1
+    temperature_register = 1000
+    temperature_amount = 6
 
-    if m.debug == False:
-        port = mursu.open_port(self.port,self.baudrate,self.timeout)
+    client = InfluxDBClient()
 
-        address = 100
+    mursu_device = MursuServer("Testimittapiste",mursu_address)
 
-        while True():
+    mursu_device.temperature_register = temperature_register
+    mursu_device.temperature_amount = temperature_amount
+    mursu_device.db_client = client
+
+    if len(sys.argv) > 2 and sys.argv[1] == "test":
+
+        
+        if sys.argv[2] == "local":
+            port = mursu.open_and_return_local_mursu_port()
+        elif sys.argv[2] == "actual":
             try:
-                measurement = m.get_temperature(port,address)
-                m.write_to_db(measurement)
-            except:
-                "An error happened.."
-            finally:
-                mursu.close(port)
+                port = mursu.open_port(device_location,baudrate,timeout)
+                while True:
+                    measurement = mursu_device.get_temperature(port)
+                    print "Got measurement:"
+                    print measurement
+                    #mursu_device.write_value_using_influx_client(float(measurement))
+                    time.sleep(1)
+            except OSError:
+                print "Nothing found at %s - check that mursu is connected and uses this port" % device_location
+               
+        else:
+            print "Syntax: mursu_server.py test local | actual"
+                
+        
+
     else:
-        # for debug purposes,
-        # post a value to database
-		m.query_db()
-        #mursu.write_simple_value(0)
+        print "Syntax: mursu_server.py test local | actual"
+        print "Use 'local' when testing without a real device and 'actual' when you have a Mursu connected"
+        
+

@@ -1,5 +1,5 @@
 import serial
-
+import mock_mursu
 import struct
 
 READ_HOLDING_REGISTERS = 0x03
@@ -18,21 +18,37 @@ def crc(message):
                 crc >>= 1  
     return crc
 
-def open_port(port=6,baudrate=38400,timeout = 0.1):
-    com = serial.Serial(port,baudrate,timeout)
-    com.open()
+def open_port(port,baudrate,timeout):
+ 
+    com = serial.Serial(port,baudrate,timeout=timeout)
+    return com
+
+def open_and_return_local_mursu_port():
+    com = mock_mursu.Serial()
     return com
 
 def close(port):
     port.close()
 
 def read_holding_register(port,address,register,amount):
-    msg = struct.pack( ">BBHH",address,
-                       READ_HOLDING_REGISTERS,register,amount)
+
+    print "Device address:" 
+    print address
+    print "Command:" 
+    print READ_HOLDING_REGISTERS
+    print "register to read:"
+    print register
+    print "Amount:"
+    print amount
+    msg = struct.pack( ">BBHH",address,READ_HOLDING_REGISTERS,register,amount)
     checksum = crc( msg )
     msg += struct.pack( "<H", checksum )
     port.write(msg)
+    print "We wrote: "
+    print_message(msg)
     response = port.read(1024)
+    print "We read:"
+    print_response(response)
     return response
 
 def write_single_register(port,address,register,amount):
@@ -45,9 +61,11 @@ def write_single_register(port,address,register,amount):
     return response
 
 def print_message(message):
+    print "message format: | address | function code | register | amount | crc |"
     print "->",["%02x" % ord(x) for x in message ]
 
 def print_response(response):
+    print "message format: | address | function code | byte count | register contents | crc |"
     print "<-", ["%02x" % ord(x) for x in response ]
 
 def change_device_address(port,old_address,new_address):
