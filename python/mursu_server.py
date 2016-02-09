@@ -1,9 +1,9 @@
 import requests
-import sys
-import time
-import struct
+import sys,time,struct,argparse 
 
 import mursu_communications as mursu
+import configuration as config
+
 from influxdb import InfluxDBClient
 from influxdb.exceptions import InfluxDBClientError
 
@@ -58,16 +58,16 @@ class MursuServer():
         print request.url
 
 
-if __name__ == "__main__":
+def create_mursu(address,location):
 
-    mursu_address = 100
-    device_location = 2 #"COM3" #"/dev/tty.usbserial-DA00LG9R"
+    mursu_address = address
+    device_location = location #"COM3" #"/dev/tty.usbserial-DA00LG9R"
     baudrate = 38400
     timeout = 1
     temperature_register = 1000
     temperature_amount = 6
 
-    client = InfluxDBClient()
+    client = InfluxDBClient(host=config.host,port=config.port,username=config.username,password=config.password,database=config.database)
 
     mursu_device = MursuServer("Testimittapiste",mursu_address)
 
@@ -75,30 +75,103 @@ if __name__ == "__main__":
     mursu_device.temperature_amount = temperature_amount
     mursu_device.db_client = client
 
-    if len(sys.argv) > 2 and sys.argv[1] == "test":
+    return mursu_device
+
+def test_local(address):
+    mursu_address = int(args.address)
+    mursu_device = create_mursu(mursu_address, "test")
+
+    port = mursu.open_and_return_local_mursu_port()
+
+    while True:
+        measurement = mursu_device.get_temperature(port)
+        print measurement
+        
+def run_server(address,location):
+
+    mursu_device = create_mursu(address,location)
+
+    try:
+        port = mursu.open_port(device_location,baudrate,timeout)
+        while True:
+            measurement = mursu_device.get_temperature(port)
+            print "Got measurement:"
+            print measurement
+            #mursu_device.write_value_using_influx_client(float(measurement))
+            time.sleep(1)
+    except OSError:
+        print "Nothing found at %s - check that mursu is connected and uses this port" % device_location
+
+
+def dbtest():
+    mursu_device = create_mursu(1,1)
+    mursu_device.write_value_using_influx_client(20.0)
+    print "Here"
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Read data from Mursu and store to database')
+    subparsers = parser.add_subparsers(title='Available commands',
+                                       help='See help for each command with mursu_server.py command_name -h')
+
+    test_parser = subparsers.add_parser('test')
+    test_parser.add_argument('address')
+    test_parser.set_defaults(func=test_local)
+
+    mursu_parser = subparsers.add_parser('start')
+    mursu_parser.add_argument('address')
+    mursu_parser.add_argument('location')
+    mursu_parser.set_defaults(func=run_server)
+
+    dbtest_parser = subparsers.add_parser('dbtest')
+    dbtest_parser.set_defaults(func=dbtest)
+
+    args = parser.parse_args()
+
+    if args.func == dbtest:
+        args.func()
+    else:
+        args.func(args)
+
+    # measurementursu_address = 100
+    # device_location = 2 #"COM3" #"/dev/tty.usbserial-DA00LG9R"
+    # baudrate = 38400
+    # timeout = 1
+    # temperature_register = 1000
+    # temperature_amount = 6
+
+    # client = InfluxDBClient(host=config.host,port=config.port,username=config.user,password=config.password,database=config.database)
+
+    # mursu_device = MursuServer("Testimittapiste",mursu_address)
+
+    # mursu_device.temperature_register = temperature_register
+    # mursu_device.temperature_amount = temperature_amount
+    # mursu_device.db_client = client
+
+    # if len(sys.argv) > 2 and sys.argv[1] == "test":
 
         
-        if sys.argv[2] == "local":
-            port = mursu.open_and_return_local_mursu_port()
-        elif sys.argv[2] == "actual":
-            try:
-                port = mursu.open_port(device_location,baudrate,timeout)
-                while True:
-                    measurement = mursu_device.get_temperature(port)
-                    print "Got measurement:"
-                    print measurement
-                    #mursu_device.write_value_using_influx_client(float(measurement))
-                    time.sleep(1)
-            except OSError:
-                print "Nothing found at %s - check that mursu is connected and uses this port" % device_location
+    #     if sys.argv[2] == "local":
+    #         port = mursu.open_and_return_local_mursu_port()
+    #     elif sys.argv[2] == "actual":
+    #         try:
+    #             port = mursu.open_port(device_location,baudrate,timeout)
+    #             while True:
+    #                 measurement = mursu_device.get_temperature(port)
+    #                 print "Got measurement:"
+    #                 print measurement
+    #                 #mursu_device.write_value_using_influx_client(float(measurement))
+    #                 time.sleep(1)
+    #         except OSError:
+    #             print "Nothing found at %s - check that mursu is connected and uses this port" % device_location  
                
-        else:
-            print "Syntax: mursu_server.py test local | actual"
+    #     else:
+    #         print "Syntax: mursu_server.py test local | actual"
                 
         
 
-    else:
-        print "Syntax: mursu_server.py test local | actual"
-        print "Use 'local' when testing without a real device and 'actual' when you have a Mursu connected"
+    # else:
+    #     print "Syntax: mursu_server.py test local | actual"
+    #     print "Use 'local' when testing without a real device and 'actual' when you have a Mursu connected"
         
 
