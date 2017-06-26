@@ -2,7 +2,8 @@
  * Aavikkomursu7.c
  *
  * Created: 5.7.2015 22:04
- *  Author: Markus
+ * Author: Markus, Tuikku & Krista
+ *
  */ 
 
 #define F_CPU 8000000
