@@ -42,15 +42,24 @@
 /* global variables */
 
 volatile uint8_t g_uart_new_message = 1;
+
+// longest modbus message can be 64bytes long
+// messages could be longer but we try to save device's memory and keep messages short and sweet
 volatile uint8_t g_uart_buffer[64] = {0};
 volatile uint8_t g_uart_counter = 0;
+
+// address to 250 as it is high number, so there should not be mix ups easily: people tend to give small address numbers if they change them -> new boards should not interfere with existing ones.
 volatile uint8_t modbus_address = 250;
 volatile uint16_t device_serial_number = 0;
 
+// we choose memory slot that is easy to remember and does not come across accidentally because if it is for example 0, you just have forgotten to initialise your variable and use that slot
 uint16_t modbus_start_address = 1000;
 uint16_t modbus_stop_address = 1010;
+
+// place to save all data that is measured. If one gets this specific sequence back -> no data has ever been saved into this slot (or you have got reallyreally good chances to win lottery :) So, for predebugging just in case)
 uint16_t measurement_table[8] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80};
-uint8_t ADDRESS_TEMP = 0;
+
+// sensors offsets if need to "calibrate"
 int16_t measurement_offsets[8] = {0,0,0,0};
 
 // function prototypes used in interrupt handlers
