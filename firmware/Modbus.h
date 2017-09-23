@@ -5,10 +5,11 @@
  *  Author: Markus
  */ 
 
+// defines all constants
+// in own file because main file would be cluttered otherwise
 
 #ifndef MODBUS_H_
 #define MODBUS_H_
-
 
 #define MODBUS_ADDRESS_IDX		(0)
 #define MODBUS_FUNC_CODE_IDX	(1)
