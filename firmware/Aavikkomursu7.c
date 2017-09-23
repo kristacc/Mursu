@@ -39,9 +39,6 @@
 
 /* Defines and constants */
 
-/* Constants*/
-const uint8_t hextable[16] = "0123456789abcdef";
-
 /* global variables */
 
 volatile uint8_t g_uart_new_message = 1;
