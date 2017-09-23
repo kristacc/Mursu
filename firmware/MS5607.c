@@ -5,6 +5,8 @@
  *  Author: Markus
  */ 
 
+// all this is directly from datasheet
+
 #include "MS5607.h"
 
 void ms5607_init( ms5607_conf_t *conf){
