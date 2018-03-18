@@ -1,11 +1,11 @@
 import requests
-import sys,time,struct,argparse 
+import sys,time,struct,argparse
 
 import mursu_communications as mursu
-import configuration as config
+#import configuration as config
 
-from influxdb import InfluxDBClient
-from influxdb.exceptions import InfluxDBClientError
+#from influxdb import InfluxDBClient
+#from influxdb.exceptions import InfluxDBClientError
 
 class MursuServer():
 
@@ -19,10 +19,10 @@ class MursuServer():
     def get_temperature(self,port):
         data = mursu.read_holding_register(port,self.address,self.temperature_register,self.temperature_amount)
         temperature = self.parse_temperature(data)
-        return temperature 
+        return temperature
 
     def parse_temperature(self,data):
-        
+
         temp_value = data[3:-2]
         print len(temp_value)
         (t0,p,rh,t1) = struct.unpack_from(">IIHH",temp_value,0)
@@ -30,7 +30,7 @@ class MursuServer():
         return t0
 
     def write_value_using_influx_client(self,value):
-        
+
         try:
             json_body = [
             {
@@ -67,7 +67,8 @@ def create_mursu(address,location):
     temperature_register = 1000
     temperature_amount = 6
 
-    client = InfluxDBClient(host=config.host,port=config.port,username=config.username,password=config.password,database=config.database)
+    #client = InfluxDBClient(host=config.host,port=config.port,username=config.username,password=config.password,database=config.database)
+    client = None
 
     mursu_device = MursuServer("Testimittapiste",mursu_address)
 
@@ -87,18 +88,21 @@ def test_local(address):
         measurement = mursu_device.get_temperature(port)
         print "Received measurement:"
         print measurement
-        
-def run_server(address,location):
+
+def run_server(address,location, baudrate=38400, timeout=1):
 
     mursu_device = create_mursu(address,location)
 
     try:
-        port = mursu.open_port(device_location,baudrate,timeout)
+        port = mursu.open_port(location,baudrate,timeout)
+        if port is None:
+            print "Opening port failed. Check that port number is correct."
+            return
         while True:
             measurement = mursu_device.get_temperature(port)
             print "Received measurement:"
             print measurement
-            mursu_device.write_value_using_influx_client(float(measurement))
+            #mursu_device.write_value_using_influx_client(float(measurement))
             time.sleep(1)
     except OSError:
         print "Nothing found at %s - check that mursu is connected and uses this port" % device_location
@@ -130,7 +134,5 @@ if __name__ == "__main__":
 
     if args.func == dbtest:
         args.func()
-    else:
-        args.func(args)
-        
-
+    elif args.func == run_server:
+        args.func(args.address, args.location)

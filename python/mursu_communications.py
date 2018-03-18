@@ -15,13 +15,16 @@ def crc(message):
                 crc >>= 1
                 crc ^= 0xA001
             else:
-                crc >>= 1  
+                crc >>= 1
     return crc
 
 def open_port(port,baudrate,timeout):
- 
-    com = serial.Serial(port,baudrate,timeout=timeout)
-    return com
+    try:
+        com = serial.Serial(port,baudrate,timeout=timeout)
+        return com
+    except serial.serialutil.SerialException as se:
+        print str(se)
+        return None
 
 def open_and_return_local_mursu_port():
     com = mock_mursu.Serial()
@@ -32,9 +35,9 @@ def close(port):
 
 def read_holding_register(port,address,register,amount):
 
-    print "Device address:" 
+    print "Device address:"
     print address
-    print "Command:" 
+    print "Command:"
     print READ_HOLDING_REGISTERS
     print "register to read:"
     print register
@@ -70,4 +73,3 @@ def print_response(response):
 
 def change_device_address(port,old_address,new_address):
     write_single_register(port,old_address,CHANGE_DEVICE_ADDRESS,new_address)
-
