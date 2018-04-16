@@ -760,6 +760,7 @@ int main(void)
 	rs485_init();
 	uart_init();
 
+	// TODO i2c-väylän powerointi prosessorin pinneistä
 	i2c_init();
 
 	// enable interrupts
@@ -782,17 +783,7 @@ int main(void)
 			
 			// message handled, clear uart buffer
 			uart_clear();
-		} 
-		else {
-			// we have a message, but it is too short
-			if( g_uart_new_message == 1){
-				// message was too short, clear buffer
-				uart_clear();
-			}
-
-		// continue to wait for the message to arrive
 		}
-		
 
 		
 		// measure every 0.5 seconds

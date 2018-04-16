@@ -1,11 +1,11 @@
 import requests
 import sys,time,struct,argparse
+import os
 
 import mursu_communications as mursu
-#import configuration as config
 
-#from influxdb import InfluxDBClient
-#from influxdb.exceptions import InfluxDBClientError
+from influxdb import InfluxDBClient
+from influxdb.exceptions import InfluxDBClientError
 
 class MursuServer():
 
@@ -15,6 +15,7 @@ class MursuServer():
         self.location = location
         self.address = address
         self.db_client = None
+        self.measurement_log = "measurements_" + time.strftime("%Y%m%dT%H%M%SZ.txt", time.gmtime())
 
     def get_temperature(self,port):
         data = mursu.read_holding_register(port,self.address,self.temperature_register,self.temperature_amount)
@@ -57,6 +58,35 @@ class MursuServer():
         print request.status_code
         print request.url
 
+    def configure_database(self):
+
+        try:
+
+            host = os.environ.get('mursu_db_host', 'localhost')
+            port = os.environ.get('mursu_db_port', '8086')
+            username = os.environ['mursu_db_username']
+            password = os.environ['mursu_db_password']
+            database = os.environ['mursu_db_database']
+
+            db_client = InfluxDBClient(host=host,port=port,username=username,password=password,database=database)
+            self.db_client = db_client
+
+        except KeyError:
+
+            print "Database connection parameters not found - not storing data in database."
+            print "Values for this session will be stored only locally in measurements.txt"
+
+        except InfluxDBClientError:
+
+            print "Error connecting to influxdb database at %s %s. Check address and username/password" % (host, port)
+
+    def write_value_to_log(self, measurement):
+
+        with open(self.measurement_log, "ab") as logfile:
+            logfile.write(measurement)
+            logfile.write("\n")
+
+
 
 def create_mursu(address,location):
 
@@ -67,52 +97,71 @@ def create_mursu(address,location):
     temperature_register = 1000
     temperature_amount = 6
 
-    #client = InfluxDBClient(host=config.host,port=config.port,username=config.username,password=config.password,database=config.database)
-    client = None
-
     mursu_device = MursuServer("Testimittapiste",mursu_address)
 
     mursu_device.temperature_register = temperature_register
     mursu_device.temperature_amount = temperature_amount
-    mursu_device.db_client = client
 
     return mursu_device
+
+
+
 
 def test_local(address):
     mursu_address = int(args.address)
     mursu_device = create_mursu(mursu_address, "test")
 
     port = mursu.open_and_return_local_mursu_port()
+    mursu.configure_database()
 
     while True:
         measurement = mursu_device.get_temperature(port)
         print "Received measurement:"
         print measurement
+        if mursu.db_client:
+            mursu.write_value_using_influx_client(float(measurement))
 
-def run_server(address,location, baudrate=38400, timeout=1):
 
-    mursu_device = create_mursu(address,location)
+def run_server(address, location, baudrate=38400, timeout=1):
+
+    mursu = create_mursu(address,location)
 
     try:
         port = mursu.open_port(location,baudrate,timeout)
+        mursu.configure_database()
+
         if port is None:
             print "Opening port failed. Check that port number is correct."
             return
+
         while True:
-            measurement = mursu_device.get_temperature(port)
+
+            measurement = mursu.get_temperature(port)
             print "Received measurement:"
             print measurement
-            #mursu_device.write_value_using_influx_client(float(measurement))
+
+            if mursu.db_client:
+
+                mursu.write_value_using_influx_client(float(measurement))
+                mursu.write_value_to_log(measurement + " " + time.strftime("%Y%m%dT%H%M%SZ.txt", time.gmtime()))
+
             time.sleep(1)
+
     except OSError:
         print "Nothing found at %s - check that mursu is connected and uses this port" % device_location
 
 
 def dbtest():
     mursu_device = create_mursu(1,1)
+    mursu_device.configure_database()
+    print "Write temperature measurement of 20 deg"
     mursu_device.write_value_using_influx_client(20.0)
+    print "Write to local file"
+    mursu_device.write_value_to_log(str(20.0))
 
 if __name__ == "__main__":
+
+    # Example: start 1 COM3 where 1 is the address of the mursu and COM3 is the port
 
     parser = argparse.ArgumentParser(description='Read data from Mursu and store to database')
     subparsers = parser.add_subparsers(title='Available commands',
