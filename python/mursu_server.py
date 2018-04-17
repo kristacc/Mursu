@@ -17,20 +17,22 @@ class MursuServer():
         self.db_client = None
         self.measurement_log = "measurements_" + time.strftime("%Y%m%dT%H%M%SZ.txt", time.gmtime())
 
-    def get_temperature(self,port):
-        data = mursu.read_holding_register(port,self.address,self.temperature_register,self.temperature_amount)
-        temperature = self.parse_temperature(data)
-        return temperature
+    def get_sensor_data(self,port):
+        data = mursu.read_holding_register(port,int(self.address),self.temperature_register,self.temperature_amount)
+        temperature, pressure, humidity = self.parse_sensor_data(data)
+        return temperature, pressure, humidity
 
-    def parse_temperature(self,data):
+    def parse_sensor_data(self,data):
 
         temp_value = data[3:-2]
         print len(temp_value)
         (t0,p,rh,t1) = struct.unpack_from(">IIHH",temp_value,0)
         t0 /= 100.0
-        return t0
+        p /= 100.0
+        rh /= 100.0
+        return t0, p, rh
 
-    def write_value_using_influx_client(self,value):
+    def write_value_using_influx_client(self,field, value):
 
         try:
             json_body = [
@@ -42,7 +44,7 @@ class MursuServer():
                 },
                 #"time": "2009-11-10T23:00:00Z",
                 "fields": {
-                    "value": value
+                    field : value
                 }
             }
             ]
@@ -124,11 +126,11 @@ def test_local(address):
 
 def run_server(address, location, baudrate=38400, timeout=1):
 
-    mursu = create_mursu(address,location)
+    mursu_device = create_mursu(address,location)
 
     try:
         port = mursu.open_port(location,baudrate,timeout)
-        mursu.configure_database()
+        mursu_device.configure_database()
 
         if port is None:
             print "Opening port failed. Check that port number is correct."
@@ -136,14 +138,18 @@ def run_server(address, location, baudrate=38400, timeout=1):
 
         while True:
 
-            measurement = mursu.get_temperature(port)
-            print "Received measurement:"
-            print measurement
+            temperature, pressure, humidity = mursu_device.get_sensor_data(port)
+            print "Received measurements:"
+            print temperature
+            print pressure
+            print humidity
 
-            if mursu.db_client:
+            if mursu_device.db_client:
 
-                mursu.write_value_using_influx_client(float(measurement))
-                mursu.write_value_to_log(measurement + " " + time.strftime("%Y%m%dT%H%M%SZ.txt", time.gmtime()))
+                mursu_device.write_value_using_influx_client("temperature", float(temperature))
+                mursu_device.write_value_using_influx_client("pressure", float(pressure))
+                mursu_device.write_value_using_influx_client("humidity", float(humidity))
+                mursu_device.write_value_to_log(str(temperature) + " " + time.strftime("%Y%m%dT%H%M%SZ.txt", time.gmtime()))
 
             time.sleep(1)
 
